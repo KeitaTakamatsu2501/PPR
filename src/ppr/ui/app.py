@@ -17,13 +17,22 @@ Tk Text からの取得は `end-1c` を使い、Tkが付ける末尾改行だけ
 from __future__ import annotations
 
 import contextlib
+import datetime as _dt
+import json
 import tkinter as tk
 from tkinter import messagebox, ttk
 
 from ..config import AppConfig
 from ..domain import HUMANITY_MEMBERSHIPS, PERCEIVED_HUMANITY_OVERRIDES, Library
 from ..storage import LibraryLock, LibraryLockedError, LibraryStore
-from .state import BASIC_FIELDS, BODY_FIELDS, BODY_FIELD_LABELS, EditorState, EditTarget
+from .state import (
+    BASIC_FIELDS,
+    BODY_FIELD_LABELS,
+    BODY_FIELDS,
+    EditorState,
+    EditTarget,
+    PersonaIntegrityError,
+)
 
 PERSON_FIELDS: tuple[tuple[str, str], ...] = (
     ("name", "名前"),
@@ -408,7 +417,17 @@ class PprApp(ttk.Frame):
         state = self.state
         if state is None or self._body_target is None:
             return
-        if state.apply_section(self._body_target, text_value(self.body_text)):
+        try:
+            changed = state.apply_section(self._body_target, text_value(self.body_text))
+        except (PersonaIntegrityError, IndexError) as exc:
+            self._body_target = None
+            messagebox.showerror(
+                "書き込みを中止しました",
+                f"{exc}\n\n直前の編集は反映されていません。画面を読み直します。",
+            )
+            self._refresh_all()
+            return
+        if changed:
             self._schedule_status()
 
     def _on_body_modified(self, _event: object = None) -> None:
@@ -574,6 +593,20 @@ class PprApp(ttk.Frame):
         if issues:
             messagebox.showerror("保存できません", "\n".join(issues))
             return
+        shrinks = state.suspicious_shrinks()
+        if shrinks:
+            lines = "\n".join(
+                f"　{BODY_FIELD_LABELS[name]}: {before:,}字 → {after:,}字 （{after - before:+,}）"
+                for name, before, after in shrinks
+            )
+            if not messagebox.askokcancel(
+                "本文が大きく減っています",
+                f"「{state.document.name}」の本文が開いた時点より大きく減っています。\n\n"
+                f"{lines}\n\n意図した変更であれば保存します。"
+                "取込原本へ戻す場合は  python -m ppr restore-origin  を使ってください。",
+            ):
+                return
+        self._write_edit_log(state)
         try:
             self.library = state.commit()
             self.store.save(self.library)
@@ -590,6 +623,32 @@ class PprApp(ttk.Frame):
                     values=(f"{document.body_characters:,}",),
                 )
         self._refresh_status()
+
+    def _write_edit_log(self, state: EditorState) -> None:
+        """保存時点の変更内容を追記する。破損の原因を後から追えるようにする。"""
+        changes = state.body_changes()
+        if not changes and not state.mutations:
+            return
+        entry = {
+            "at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+            "persona_id": state.persona_id,
+            "name": state.document.name,
+            "locale": state.locale,
+            "baseline_revision": state.baseline_revision,
+            "saved_revision": state.current_revision,
+            "body_changes": [
+                {"field": name, "before": before, "after": after}
+                for name, before, after in changes
+            ],
+            "mutations": list(state.mutations[-100:]),
+        }
+        path = self.config_obj.data_dir / "edit_log.jsonl"
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except OSError:
+            pass  # ログの失敗で保存を止めない
 
     def on_close(self) -> None:
         if self.state is not None:

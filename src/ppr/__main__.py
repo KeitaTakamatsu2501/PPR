@@ -31,6 +31,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("list", help="取り込み済みの人格を一覧する")
     sub.add_parser("check-drift", help="取込後にJTS側が変化したかを調べる")
+    sub.add_parser("diff-origin", help="ライブラリと取込原本の本文を突き合わせる")
+
+    res = sub.add_parser("restore-origin", help="本文を取込原本の内容へ戻す")
+    res.add_argument("--persona", nargs="*", default=None, help="既定は差分のあるすべて")
+    res.add_argument("--field", nargs="*", default=None, help="既定は4本文すべて")
+    res.add_argument("--yes", action="store_true", help="確認せずに実行する")
     return parser
 
 
@@ -125,6 +131,67 @@ def cmd_check_drift(args: argparse.Namespace) -> int:
     return 1 if any_drift else 0
 
 
+def _format_differences(differences) -> None:
+    print(f"{'名前':<10}{'項目':<18}{'ライブラリ':>10}{'原本':>8}{'差':>9}")
+    for d in differences:
+        print(f"{d.name:<10}{d.field:<18}{d.library_characters:>10}{d.origin_characters:>8}{d.delta:>+9}")
+
+
+def cmd_diff_origin(args: argparse.Namespace) -> int:
+    from .adapters.jts.restore import compare_with_origin
+
+    config = resolve_config(args.data_dir, offline=args.offline)
+    library = LibraryStore(config).load()
+    if not library.imports:
+        print("取込の記録がありません。")
+        return 0
+    reference = library.imports[-1]
+    differences = compare_with_origin(library, reference, config.imports_dir)
+    print(f"取込原本: {reference.import_id}  ({reference.locale})")
+    if not differences:
+        print("本文の差分はありません。")
+        return 0
+    _format_differences(differences)
+    print(f"\n差分 {len(differences)} 件。取込後の編集か、破損の可能性があります。")
+    print("戻す場合:  python -m ppr restore-origin --persona <persona_id>")
+    return 1
+
+
+def cmd_restore_origin(args: argparse.Namespace) -> int:
+    from .adapters.jts.restore import COMPARED_FIELDS, restore_from_origin
+
+    config = resolve_config(args.data_dir, offline=args.offline)
+    store = LibraryStore(config)
+    try:
+        with LibraryLock(config):
+            library = store.load()
+            if not library.imports:
+                print("取込の記録がありません。", file=sys.stderr)
+                return 1
+            reference = library.imports[-1]
+            fields = tuple(args.field) if args.field else COMPARED_FIELDS
+            personas = tuple(args.persona) if args.persona else None
+            updated, restored = restore_from_origin(
+                library, reference, config.imports_dir, persona_ids=personas, fields=fields
+            )
+            if not restored:
+                print("戻す対象がありません。")
+                return 0
+            print("次の本文を取込原本の内容へ戻します。")
+            _format_differences(restored)
+            if not args.yes:
+                answer = input("\n実行しますか [y/N]: ").strip().lower()
+                if answer not in ("y", "yes"):
+                    print("中止しました。")
+                    return 1
+            store.save(updated)
+    except LibraryLockedError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    print(f"\n{len(restored)} 件を戻しました。")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -134,6 +201,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_list(args)
     if args.command == "check-drift":
         return cmd_check_drift(args)
+    if args.command == "diff-origin":
+        return cmd_diff_origin(args)
+    if args.command == "restore-origin":
+        return cmd_restore_origin(args)
 
     from .ui.app import run_app
 

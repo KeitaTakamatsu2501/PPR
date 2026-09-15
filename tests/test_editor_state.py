@@ -245,3 +245,59 @@ class TargetBoundWrites(unittest.TestCase):
         state, _ = self._states()
         self.assertFalse(state.apply_topic(state.target_for_topic("消えた行"), "x"))
         self.assertFalse(state.dirty)
+
+
+class IntegrityGuards(unittest.TestCase):
+    def test_section_replacement_length_is_arithmetic(self):
+        state = EditorState.open(library(), "ppr-1", "ja-JP")
+        before = len(state.body("basic_settings"))
+        section = state.sections("basic_settings")[1]
+        new = "【人格の核】\nもっと長い本文にする。\n\n"
+        state.set_section("basic_settings", 1, new)
+        self.assertEqual(
+            len(state.body("basic_settings")), before - len(section.text) + len(new)
+        )
+
+    def test_out_of_range_section_write_raises(self):
+        state = EditorState.open(library(), "ppr-1", "ja-JP")
+        with self.assertRaises(IndexError):
+            state.set_section("basic_settings", 99, "x")
+
+    def test_body_changes_reports_before_and_after(self):
+        state = EditorState.open(library(), "ppr-1", "ja-JP")
+        state.set_section("basic_settings", 1, "【人格の核】\n短く。\n\n")
+        changes = state.body_changes()
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0][0], "basic_settings")
+        self.assertGreater(changes[0][1], changes[0][2])
+
+    def test_large_deletion_is_flagged_as_suspicious(self):
+        doc = PersonaDocument(
+            persona_id="ppr-1", locale="ja-JP", name="テスト",
+            basic_settings="【a】\n" + "あ" * 3000 + "\n\n【b】\n" + "い" * 3000 + "\n",
+        )
+        lib = Library().with_persona(PersonaRecord("ppr-1", {"ja-JP": doc}))
+        state = EditorState.open(lib, "ppr-1", "ja-JP")
+        state.set_section("basic_settings", 0, "【a】\n短く\n")
+        self.assertEqual([c[0] for c in state.suspicious_shrinks()], ["basic_settings"])
+
+    def test_small_edit_is_not_flagged(self):
+        state = EditorState.open(library(), "ppr-1", "ja-JP")
+        state.set_section("basic_settings", 1, "【人格の核】\n核の本文を少し直した。  \n\n")
+        self.assertEqual(state.suspicious_shrinks(), ())
+
+    def test_mutations_are_recorded_for_forensics(self):
+        state = EditorState.open(library(), "ppr-1", "ja-JP")
+        state.set_section("basic_settings", 1, "【人格の核】\n書き換え。\n\n")
+        state.set_basic("name", "別名")
+        kinds = [m["kind"] for m in state.mutations]
+        self.assertEqual(kinds, ["section", "basic"])
+        self.assertEqual(state.mutations[0]["sections_before"], 3)
+        self.assertEqual(state.mutations[0]["sections_after"], 3)
+
+    def test_commit_clears_the_recorded_mutations(self):
+        state = EditorState.open(library(), "ppr-1", "ja-JP")
+        state.set_basic("name", "別名")
+        state.commit()
+        self.assertEqual(state.mutations, [])
+        self.assertEqual(state.body_changes(), ())

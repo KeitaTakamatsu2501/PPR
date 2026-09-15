@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 from pathlib import Path
@@ -20,6 +21,9 @@ from .revisions import canonical_json
 
 class LibraryLockedError(RuntimeError):
     """他のプロセスが編集中。"""
+
+
+BACKUP_GENERATIONS = 10
 
 
 class LibraryStore:
@@ -47,8 +51,9 @@ class LibraryStore:
         payload = canonical_json(library.to_json())
 
         if path.exists():
-            previous = self._previous_path()
-            previous.write_bytes(path.read_bytes())
+            current = path.read_bytes()
+            self._previous_path().write_bytes(current)
+            self._write_backup(current)
 
         tmp = path.with_name(path.name + ".tmp")
         with tmp.open("w", encoding="utf-8") as handle:
@@ -61,6 +66,22 @@ class LibraryStore:
 
     def _previous_path(self) -> Path:
         return self.config.library_path.with_name("library.prev.json")
+
+    def backups_dir(self) -> Path:
+        return self.config.data_dir / "backups"
+
+    def _write_backup(self, payload: bytes) -> None:
+        """世代バックアップ。直前版1つだけでは、破損に気づく前に上書きされる。"""
+        directory = self.backups_dir()
+        directory.mkdir(parents=True, exist_ok=True)
+        stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+        (directory / f"library-{stamp}.json").write_bytes(payload)
+        existing = sorted(directory.glob("library-*.json"))
+        for stale in existing[:-BACKUP_GENERATIONS]:
+            try:
+                stale.unlink()
+            except OSError:
+                pass
 
     @staticmethod
     def _fsync_directory(directory: Path) -> None:

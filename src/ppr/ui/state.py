@@ -20,6 +20,10 @@ from ..domain import (
 from ..revisions import revision_id_for
 from ..sections import BodySection, replace_section_text, split_sections
 
+
+class PersonaIntegrityError(RuntimeError):
+    """人格データの整合が壊れる書き込みを検出した。"""
+
 BODY_FIELDS: tuple[tuple[str, str], ...] = (
     ("overview", "概要"),
     ("basic_settings", "基本設定"),
@@ -69,6 +73,8 @@ class EditorState:
     locale: str
     document: PersonaDocument
     baseline_revision: str
+    baseline_document: PersonaDocument | None = None
+    mutations: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def open(cls, library: Library, persona_id: str, locale: str) -> EditorState:
@@ -84,6 +90,7 @@ class EditorState:
             locale=locale,
             document=document,
             baseline_revision=revision_id_for(document),
+            baseline_document=document,
         )
 
     # ---- 状態 ---------------------------------------------------------
@@ -98,9 +105,17 @@ class EditorState:
 
     # ---- 基本項目 -----------------------------------------------------
 
+    def _record(self, kind: str, **detail: Any) -> None:
+        """変更の記録。破損が起きたとき、どの操作が原因かを後から読めるようにする。"""
+        self.mutations.append({"kind": kind, **detail})
+        if len(self.mutations) > 500:
+            del self.mutations[:-500]
+
     def set_basic(self, field: str, value: str) -> None:
         if field not in dict(BASIC_FIELDS):
             raise KeyError(f"未知の基本項目です: {field}")
+        self._record("basic", field=field,
+                     before=len(getattr(self.document, field)), after=len(value))
         self.document = self.document.with_changes(**{field: value})
 
     # ---- 本文 ---------------------------------------------------------
@@ -120,7 +135,22 @@ class EditorState:
 
     def set_section(self, field: str, index: int, value: str) -> None:
         """指定区画だけを差し替える。他の区画は1文字も変えない。"""
-        self.set_body(field, replace_section_text(self.body(field), index, value))
+        current = self.body(field)
+        sections = split_sections(current)
+        if not 0 <= index < len(sections):
+            raise IndexError(f"区画 {index} は範囲外です（全{len(sections)}区画）")
+        expected = len(current) - len(sections[index].text) + len(value)
+        updated = replace_section_text(current, index, value)
+        if len(updated) != expected:
+            # 区画置換は長さが算術的に決まる。合わないなら区画の対応が壊れている。
+            raise PersonaIntegrityError(
+                f"{field} の区画置換で長さが合いません: "
+                f"期待 {expected} / 実際 {len(updated)}。書き込みを中止しました。"
+            )
+        self._record("section", field=field, index=index,
+                     before=len(current), after=len(updated),
+                     sections_before=len(sections), sections_after=len(split_sections(updated)))
+        self.set_body(field, updated)
 
     # ---- 価値観 -------------------------------------------------------
 
@@ -282,6 +312,29 @@ class EditorState:
         self.set_person_stance(target.entry_id, **changes)
         return True
 
+    # ---- 保存前の点検 -------------------------------------------------
+
+    def body_changes(self) -> tuple[tuple[str, int, int], ...]:
+        """開いた時点からの本文の増減。(項目, 開いた時, 現在) を返す。"""
+        base = self.baseline_document
+        if base is None:
+            return ()
+        changes = []
+        for name in BODY_FIELD_NAMES:
+            before, after = getattr(base, name), getattr(self.document, name)
+            if before != after:
+                changes.append((name, len(before), len(after)))
+        return tuple(changes)
+
+    def suspicious_shrinks(
+        self, *, minimum_loss: int = 500, ratio: float = 0.3
+    ) -> tuple[tuple[str, int, int], ...]:
+        """作者の意図しない大量削除を疑う変更。保存前に確認を出すために使う。"""
+        return tuple(
+            change for change in self.body_changes()
+            if change[1] - change[2] >= minimum_loss and change[2] < change[1] * (1 - ratio)
+        )
+
     # ---- 反映 ---------------------------------------------------------
 
     def commit(self) -> Library:
@@ -296,4 +349,6 @@ class EditorState:
         )
         self.library = self.library.with_persona(updated)
         self.baseline_revision = revision_id_for(self.document)
+        self.baseline_document = self.document
+        self.mutations.clear()
         return self.library
