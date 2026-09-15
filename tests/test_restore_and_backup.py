@@ -110,3 +110,86 @@ class Backups(unittest.TestCase):
             raw = json.loads(newest.read_text(encoding="utf-8"))
             self.assertEqual(raw["personas"][0]["variants"]["ja-JP"]["overview"], "古い")
             self.assertEqual(store.load().persona("ppr-1").variants["ja-JP"].overview, "新しい")
+
+
+class ConcurrentWriteProtection(unittest.TestCase):
+    """古いプロセスが残っていて、新しい内容を潰す事故を防ぐ。"""
+
+    def _doc(self, text: str) -> Library:
+        return Library().with_persona(
+            PersonaRecord("ppr-1", {"ja-JP": PersonaDocument(
+                persona_id="ppr-1", locale="ja-JP", name="テスト", overview=text)})
+        )
+
+    def test_save_is_refused_after_another_process_wrote(self):
+        from ppr.storage import LibraryConflictError
+
+        with tempfile.TemporaryDirectory() as t:
+            config = AppConfig(data_dir=Path(t))
+            old = LibraryStore(config)
+            old.save(self._doc("初版"))
+            old.load()                       # 古いプロセスが読み込む
+
+            new = LibraryStore(config)       # 別プロセス相当
+            new.load()
+            new.save(self._doc("新しい内容"))
+
+            with self.assertRaises(LibraryConflictError):
+                old.save(self._doc("古いプロセスの上書き"))
+            self.assertEqual(
+                LibraryStore(config).load().persona("ppr-1").variants["ja-JP"].overview,
+                "新しい内容",
+            )
+
+    def test_force_allows_the_overwrite(self):
+        with tempfile.TemporaryDirectory() as t:
+            config = AppConfig(data_dir=Path(t))
+            old = LibraryStore(config)
+            old.save(self._doc("初版"))
+            old.load()
+            other = LibraryStore(config)
+            other.load()
+            other.save(self._doc("新しい内容"))
+            old.save(self._doc("強制上書き"), force=True)
+            self.assertEqual(
+                LibraryStore(config).load().persona("ppr-1").variants["ja-JP"].overview,
+                "強制上書き",
+            )
+
+    def test_consecutive_saves_from_the_same_store_are_allowed(self):
+        with tempfile.TemporaryDirectory() as t:
+            store = LibraryStore(AppConfig(data_dir=Path(t)))
+            store.load()
+            store.save(self._doc("一"))
+            store.save(self._doc("二"))
+            store.save(self._doc("三"))
+            self.assertEqual(store.load().persona("ppr-1").variants["ja-JP"].overview, "三")
+
+    def test_first_save_into_an_empty_directory_is_allowed(self):
+        with tempfile.TemporaryDirectory() as t:
+            store = LibraryStore(AppConfig(data_dir=Path(t)))
+            store.load()
+            store.save(self._doc("初版"))
+            self.assertEqual(store.load().persona("ppr-1").variants["ja-JP"].overview, "初版")
+
+
+class LockOwnership(unittest.TestCase):
+    def test_held_is_true_while_acquired(self):
+        from ppr.storage import LibraryLock
+
+        with tempfile.TemporaryDirectory() as t:
+            lock = LibraryLock(AppConfig(data_dir=Path(t)))
+            self.assertFalse(lock.held())
+            with lock:
+                self.assertTrue(lock.held())
+            self.assertFalse(lock.held())
+
+    def test_held_is_false_when_the_lock_file_was_taken_over(self):
+        from ppr.storage import LibraryLock
+
+        with tempfile.TemporaryDirectory() as t:
+            config = AppConfig(data_dir=Path(t))
+            lock = LibraryLock(config)
+            with lock:
+                config.lock_path.write_text("999999", encoding="ascii")
+                self.assertFalse(lock.held())

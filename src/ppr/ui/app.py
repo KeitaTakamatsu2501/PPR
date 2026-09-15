@@ -24,7 +24,7 @@ from tkinter import messagebox, ttk
 
 from ..config import AppConfig
 from ..domain import HUMANITY_MEMBERSHIPS, PERCEIVED_HUMANITY_OVERRIDES, Library
-from ..storage import LibraryLock, LibraryLockedError, LibraryStore
+from ..storage import LibraryConflictError, LibraryLock, LibraryLockedError, LibraryStore
 from .state import (
     BASIC_FIELDS,
     BODY_FIELD_LABELS,
@@ -50,10 +50,14 @@ def text_value(widget: tk.Text) -> str:
 
 
 class PprApp(ttk.Frame):
-    def __init__(self, master: tk.Tk, config: AppConfig, library: Library, store: LibraryStore):
+    def __init__(
+        self, master: tk.Tk, config: AppConfig, library: Library,
+        store: LibraryStore, lock: LibraryLock | None = None,
+    ):
         super().__init__(master, padding=8)
         self.config_obj = config
         self.store = store
+        self.lock = lock
         self.library = library
         self.state: EditorState | None = None
 
@@ -606,11 +610,29 @@ class PprApp(ttk.Frame):
                 "取込原本へ戻す場合は  python -m ppr restore-origin  を使ってください。",
             ):
                 return
+        if self.lock is not None and not self.lock.held():
+            messagebox.showerror(
+                "保存できません",
+                "このPPRが持っていた編集ロックが失われています。"
+                "別のPPRが起動している可能性があります。\n\n"
+                "未保存の状態は保持しています。ほかのPPRを終了してから、"
+                "このアプリを起動し直してください。",
+            )
+            return
         self._write_edit_log(state)
+        previous_library = self.library
         try:
             self.library = state.commit()
             self.store.save(self.library)
+        except LibraryConflictError as exc:
+            self.library = previous_library
+            messagebox.showerror(
+                "保存を中止しました",
+                f"{exc}\n\n未保存の状態は保持しています。",
+            )
+            return
         except OSError as exc:
+            self.library = previous_library
             messagebox.showerror("保存に失敗しました", f"{exc}\n未保存の状態を保持しています。")
             return
         # 一覧の本文字数を更新する。開いている人格は選び直さない。
@@ -679,7 +701,7 @@ def run_app(config: AppConfig) -> int:
         root = tk.Tk()
         root.title("PPR — 人格ビルダー")
         root.geometry("1180x760")
-        app = PprApp(root, config, library, store)
+        app = PprApp(root, config, library, store, lock)
         root.protocol("WM_DELETE_WINDOW", app.on_close)
         root.mainloop()
     finally:

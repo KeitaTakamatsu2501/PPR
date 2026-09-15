@@ -37,6 +37,11 @@ def _build_parser() -> argparse.ArgumentParser:
     res.add_argument("--persona", nargs="*", default=None, help="既定は差分のあるすべて")
     res.add_argument("--field", nargs="*", default=None, help="既定は4本文すべて")
     res.add_argument("--yes", action="store_true", help="確認せずに実行する")
+
+    sub.add_parser(
+        "selftest-text",
+        help="Tk Textの往復で本文が変化しないかを、保存済みの全人格で確かめる",
+    )
     return parser
 
 
@@ -192,6 +197,55 @@ def cmd_restore_origin(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_selftest_text(args: argparse.Namespace) -> int:
+    """編集ウィジェットへ入れて取り出すと文字が変わらないかを実データで確かめる。
+
+    Tk Text は末尾に改行を1つ強制する。取得を誤ると、編集していない本文へ
+    改行が足されたり、末尾の空行が失われたりする。実際に本文末尾へ改行が
+    1文字増えた事例があったため、この経路を実データで検査する。
+    """
+    import tkinter as tk
+
+    from .sections import split_sections
+    from .ui.app import text_value
+
+    config = resolve_config(args.data_dir, offline=args.offline)
+    library = LibraryStore(config).load()
+    if not library.personas:
+        print("人格がありません。")
+        return 0
+
+    root = tk.Tk()
+    root.withdraw()
+    widget = tk.Text(root)
+    failures = 0
+    checked = 0
+    for record in library.personas:
+        for locale in record.locales:
+            document = record.variants[locale]
+            for field in ("overview", "basic_settings", "speaking_style", "dialogue_samples"):
+                body = getattr(document, field)
+                for index, section in enumerate(split_sections(body)):
+                    widget.delete("1.0", "end")
+                    widget.insert("1.0", section.text)
+                    got = text_value(widget)
+                    checked += 1
+                    if got != section.text:
+                        failures += 1
+                        print(
+                            f"  差異: {document.name} / {field} / 区画{index}  "
+                            f"入力{len(section.text)}字 → 取得{len(got)}字  "
+                            f"末尾 {section.text[-8:]!r} → {got[-8:]!r}"
+                        )
+    root.destroy()
+    print(f"\n検査した区画: {checked}")
+    if failures:
+        print(f"往復で変化した区画: {failures} 件。編集画面は本文を変えてしまいます。")
+        return 1
+    print("往復で変化した区画はありません。")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -205,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_diff_origin(args)
     if args.command == "restore-origin":
         return cmd_restore_origin(args)
+    if args.command == "selftest-text":
+        return cmd_selftest_text(args)
 
     from .ui.app import run_app
 
