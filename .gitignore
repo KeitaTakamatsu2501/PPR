@@ -1,0 +1,13 @@
+# ローカルデータ（人格本文・取込原本・試演ログ）は追跡しない
+/data/
+/config.local.json
+/.venv/
+/phase0/out/
+/phase0/jts_snapshot/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.DS_Store

@@ -1,0 +1,321 @@
+{
+  "manifest_version": 1,
+  "purpose": "Planning reference only; no implementation extraction or character migration has been performed.",
+  "captured_at_utc": "2026-09-14T17:05:55.627103+00:00",
+  "plan_finalized_local_date": "2026-09-15",
+  "jts": {
+    "root": "/Users/keita/dev/private/JTS",
+    "head": "3a22063eb731c9ea1652b5a54212aee05592b928",
+    "source_basis": "working tree including modified and untracked files, not HEAD alone",
+    "selected_source_git_status": [
+      " M README.md",
+      " M app_paths.py",
+      " M bedrock_mantle_client.py",
+      " M character_addressing.py",
+      " M dual_voice_chat_core.py",
+      " M high_quality_character_manager_gui.py",
+      " M offline_generation.py",
+      " M service_lm_usage.py",
+      " M tests/test_bedrock_mantle_client.py",
+      "?? character_locale_store.py",
+      "?? tests/test_character_locale_store.py"
+    ],
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "666120f97864fa4be149c55112807d0790389865a2e91a85b4d05fb6ffd182bb",
+        "size_bytes": 23642
+      },
+      {
+        "path": "app_paths.py",
+        "sha256": "1b347f8697c455b66edee8a8d5ea22db0fa6a6964fac844e6a638e74718ca085",
+        "size_bytes": 6128
+      },
+      {
+        "path": "pyproject.toml",
+        "sha256": "11c97dffb2b1ec3ebb7e9ffdb187f9c72b31f6c68b9a752fd6bf487736b39a11",
+        "size_bytes": 371
+      },
+      {
+        "path": "requirements.txt",
+        "sha256": "12b4dd91ba7125c80bc4b75d39e8a84810abe73f5a0e949b70645062df74c4c5",
+        "size_bytes": 408
+      },
+      {
+        "path": "requirements.lock",
+        "sha256": "6dc9c5b2f82f07c9253b0031a2af6c2187827bc2c140987f4defed88af85b7b3",
+        "size_bytes": 833
+      },
+      {
+        "path": "requirements-dev.lock",
+        "sha256": "bb20220450131008631f95ec1e9f9f77c1d1887473f8913b00fd6accd66539c3",
+        "size_bytes": 34
+      },
+      {
+        "path": "start_high_quality_character_manager.command",
+        "sha256": "40583d19f41a7f5403cabf6690b4a6bb05a588ca4e5a54b812984d8b7d79bf22",
+        "size_bytes": 1480
+      },
+      {
+        "path": "high_quality_character_manager_gui.py",
+        "sha256": "0b25f65fec4c895f5924c278c92866bc170fc4f6d699c0946c9e77ef36a59932",
+        "size_bytes": 158527
+      },
+      {
+        "path": "high_quality_character_profiles.py",
+        "sha256": "8c7e8a345195572c19f93e60041be0455f426758cee98bfca80e07eb14dda9de",
+        "size_bytes": 27573
+      },
+      {
+        "path": "high_quality_topic_workshop.py",
+        "sha256": "f33856c6f3994df42c542c810cb93d5d128e8b62df604aa3de93668cd2faaa90",
+        "size_bytes": 7547
+      },
+      {
+        "path": "high_quality_person_workshop.py",
+        "sha256": "54990b3d87a8957166bc91d0a5c66bf35fdb1ed3f467b0d319f5e6ca78c500fb",
+        "size_bytes": 32042
+      },
+      {
+        "path": "character_profiles.py",
+        "sha256": "5d1b582ce6f2b0cb73ee430569f1134f76595ebb2258df521fe1ed2cb29a66d0",
+        "size_bytes": 49769
+      },
+      {
+        "path": "character_locale_store.py",
+        "sha256": "c893a08c6b1ac43ce3aff509ab2d8418f35b41f98e16dc1e58d14323b724e3b3",
+        "size_bytes": 8273
+      },
+      {
+        "path": "character_addressing.py",
+        "sha256": "7b8e99cf378aaf838aa1d6c50a43c37b82541006dc4f8aebb61405fff8e7f62c",
+        "size_bytes": 26418
+      },
+      {
+        "path": "character_style_overlays.py",
+        "sha256": "91b2391324f345c41b61f7e785b6e647cf18c5a64c2b643b1199882bbb2b604a",
+        "size_bytes": 33552
+      },
+      {
+        "path": "character_value_contracts.py",
+        "sha256": "da3d8417984098df8499497bc54ed4222a49ae50ab062c21fa03d9111aae6851",
+        "size_bytes": 46467
+      },
+      {
+        "path": "desktop_language_model.py",
+        "sha256": "5429a6e485fc8278a6223f60c6bacda2f7cb1ce3a3010c599b55626ff4eab5f0",
+        "size_bytes": 10609
+      },
+      {
+        "path": "language_model_provider.py",
+        "sha256": "2b0c6037768de48ec65f11801de6e644b7d49647310314acfd96198e6b29cfed",
+        "size_bytes": 22459
+      },
+      {
+        "path": "bedrock_mantle_client.py",
+        "sha256": "6a88b16d946fe270b694428d08545c662250ed56a76d70c69e9917f202c14e49",
+        "size_bytes": 207798
+      },
+      {
+        "path": "dual_voice_chat_core.py",
+        "sha256": "df6976f8292514e5bac5e535d959d9d360d25ae34cd7ba35bb5e370a5702ff83",
+        "size_bytes": 101448
+      },
+      {
+        "path": "service_lm_usage.py",
+        "sha256": "8b39a78fc6d218628fab237c52cd92f5a5c396258f124d79f2d4518ab44d8536",
+        "size_bytes": 134466
+      },
+      {
+        "path": "service_lm_usage_context.py",
+        "sha256": "1ed7ed84e2f9c9185e710d6aee626f954cf19fb34b5d7d504780d0f342a13144",
+        "size_bytes": 7303
+      },
+      {
+        "path": "offline_generation.py",
+        "sha256": "f88ee852fed6e1a6a13afbabfb74f70554c4245b4de7a0792c0a4b24b880a4b7",
+        "size_bytes": 1451392
+      },
+      {
+        "path": "tests/test_character_manager_catalog.py",
+        "sha256": "e0eae30a247d5cfc84950158c97e84d96054cc913e5f93537519815c45ee0086",
+        "size_bytes": 17573
+      },
+      {
+        "path": "tests/test_character_manager_recovery.py",
+        "sha256": "3cd3ca6f0160c5008cf59fd0bbc206ea16e9fecc40da50840ad7f2cf67cf9103",
+        "size_bytes": 4060
+      },
+      {
+        "path": "tests/test_character_manager_bedrock.py",
+        "sha256": "0a3188cfaa8801a1a52419d8c804144ab586582972f30c0416baa4ec70745e29",
+        "size_bytes": 35759
+      },
+      {
+        "path": "tests/test_high_quality_topic_workshop.py",
+        "sha256": "b1dc2b09053e7fd9855e0baa741db48efa375b54eae0872953c0070170aed6aa",
+        "size_bytes": 5689
+      },
+      {
+        "path": "tests/test_high_quality_person_workshop.py",
+        "sha256": "a1d1699d4f5440748a9a9c12673ad1f593dad71d47b6063b36746f4776e757a1",
+        "size_bytes": 23472
+      },
+      {
+        "path": "tests/test_high_quality_character_profiles.py",
+        "sha256": "39be9e74ffbd50aa4fe17084d02c7adcba593168779152329bdce56855653882",
+        "size_bytes": 22721
+      },
+      {
+        "path": "tests/test_character_locale_store.py",
+        "sha256": "481fd3857bcb19b6e1a4dcd09894d7d53b54d7f1070b74d0186202b87b165bc6",
+        "size_bytes": 12183
+      },
+      {
+        "path": "tests/test_character_store_migration.py",
+        "sha256": "107db73e3ff0f548133462fa9293258e2e59ca034fb0b2aac2c69c952426cce1",
+        "size_bytes": 12244
+      },
+      {
+        "path": "tests/test_character_style_overlays.py",
+        "sha256": "a65c2fa6560c75986f3f8a6c7a31548b326571149012dccc92435ada77c06d9f",
+        "size_bytes": 18413
+      },
+      {
+        "path": "tests/test_bedrock_mantle_client.py",
+        "sha256": "524cc5145eca7c05f4982bb22df5192ab512fad04678c30af177dbf062849d12",
+        "size_bytes": 155990
+      }
+    ],
+    "character_data": [
+      {
+        "locale": "ja-JP",
+        "files": [
+          {
+            "path": "config/high_quality_generation/fixed_characters.json",
+            "sha256": "c46a5c71fc6bd7ed84d260979ee7822e43af1253f70ab9621770e076835ade20",
+            "size_bytes": 2625307,
+            "schema_version": 8,
+            "record_count": 29
+          },
+          {
+            "path": "config/high_quality_generation/characters.json",
+            "sha256": "bef27e4d2e81b25817af980a88691b407ee51ebaf0a7d7793c37faa80a07074d",
+            "size_bytes": 1216219,
+            "schema_version": 2,
+            "record_count": 29,
+            "topic_stance_count": 1754,
+            "person_stance_count": 64
+          }
+        ]
+      },
+      {
+        "locale": "en-US",
+        "files": [
+          {
+            "path": "config/high_quality_generation/locales/en-US/fixed_characters.json",
+            "sha256": "f939668de379aea9b1879c9b718d30e3eb3ff0fb38b606ba25a36bc173587413",
+            "size_bytes": 2107813,
+            "schema_version": 8,
+            "record_count": 29
+          },
+          {
+            "path": "config/high_quality_generation/locales/en-US/characters.json",
+            "sha256": "18d4b4a3f2b3fc90314805dd6478822ab662fa9c0d7343b1d147e0c45d99bb12",
+            "size_bytes": 985897,
+            "schema_version": 2,
+            "record_count": 29,
+            "topic_stance_count": 1754,
+            "person_stance_count": 64
+          }
+        ]
+      },
+      {
+        "locale": "ko-KR",
+        "files": [
+          {
+            "path": "config/high_quality_generation/locales/ko-KR/fixed_characters.json",
+            "sha256": "3f6a8dd48d299333fd066424d0fbc0209683a36b888cbd16edb54d7d1e365689",
+            "size_bytes": 1594873,
+            "schema_version": 8,
+            "record_count": 29
+          },
+          {
+            "path": "config/high_quality_generation/locales/ko-KR/characters.json",
+            "sha256": "1f14a908c96c35474322b2cd640376e153a94d2f5c52d110d4268c57d72e9146",
+            "size_bytes": 613539,
+            "schema_version": 2,
+            "record_count": 29,
+            "topic_stance_count": 1754,
+            "person_stance_count": 64
+          }
+        ]
+      },
+      {
+        "locale": "zh-TW",
+        "files": [
+          {
+            "path": "config/high_quality_generation/locales/zh-TW/fixed_characters.json",
+            "sha256": "a4096a02de29da8768630f1c3d6db45c9f1ab41dd74c2941e2c3770173160624",
+            "size_bytes": 1512217,
+            "schema_version": 8,
+            "record_count": 29
+          },
+          {
+            "path": "config/high_quality_generation/locales/zh-TW/characters.json",
+            "sha256": "75598ffaa4abd18868efc91b7e461c39ee4e3d00c3901bdbddfbe57767e00e54",
+            "size_bytes": 535352,
+            "schema_version": 2,
+            "record_count": 29,
+            "topic_stance_count": 1754,
+            "person_stance_count": 64
+          }
+        ]
+      }
+    ]
+  },
+  "sbt": {
+    "root": "/Users/keita/dev/private/SBT",
+    "state": "planning only; no application implementation",
+    "files": [
+      {
+        "path": "企画書_v2.md",
+        "sha256": "42c87d2f8745c4d421c144623df015f2ac945bcf2a6f9098d5ae8b30c1ba7e8e",
+        "size_bytes": 75268
+      },
+      {
+        "path": "LLMエージェント定義/README.md",
+        "sha256": "82d641b7deb99820501bb8f535e8c4ced3aa68524ead4df5866bfed76cb7e126",
+        "size_bytes": 1854
+      },
+      {
+        "path": "LLMエージェント定義/コーポレート・タイタン.system.md",
+        "sha256": "ab64925b66df7bbc3c3c0e7c09a3dffa0e2c1480bef4f7194e76107e52657876",
+        "size_bytes": 6052
+      },
+      {
+        "path": "LLMエージェント定義/アカデミア・ロード.system.md",
+        "sha256": "3008fc010eab09221667d0bd3cd25cb67735f2d5045b9dad2282074b138b9192",
+        "size_bytes": 5291
+      },
+      {
+        "path": "LLMエージェント定義/ラグジュアリー・コレクター.system.md",
+        "sha256": "58d676c31db62991b92dc1962892ffdda3226ecf41bad04dbd33dfda44775808",
+        "size_bytes": 6288
+      }
+    ]
+  },
+  "environment_observed": {
+    "python_executable": "/opt/homebrew/bin/python3.14",
+    "python_version": "3.14.7",
+    "tk_version": "9.0",
+    "tcl_version": "9.0"
+  },
+  "excluded": [
+    "config.local.json and credentials",
+    "audio/model assets",
+    "generated conversation logs",
+    "backups as canonical inputs"
+  ],
+  "instructions": "Recheck applicable source files at implementation start. Preserve upstream worktree changes. This manifest contains hashes and counts only, not private character text."
+}
