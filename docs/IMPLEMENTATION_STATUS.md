@@ -8,7 +8,7 @@
 |---|---|---|
 | Phase 0 | **完了** | 接続契約の実地調査。JTS無変更のまま実台本を1本生成して確認 |
 | Phase 1 | **完了** | 人格ビルダー。8人 / ja-JP の取込、編集、保存 |
-| Phase 2 | 未着手 | 三層の関節。`build_persona_context` の確定と2作品での実証 |
+| Phase 2 | **実装完了 / 作者確認待ち** | 三層の関節。`build_persona_context` と2作品のscheme |
 | Phase 3 | 保留 | JTSへの反映。判断保留のまま凍結 |
 | Phase 4 | 未着手 | 設定ワークショップ、海外locale |
 
@@ -117,14 +117,85 @@ GUIでの保存後、久本礼司の `basic_settings` が 4,259字 → 296字 �
 - `python -m ppr diff-origin` — ライブラリと取込原本の本文を突き合わせる
 - `python -m ppr restore-origin [--persona ID] [--field NAME]` — 取込原本の内容へ戻す
 
-## 次の作業（Phase 2）
+## Phase 2（実装完了 / 作者確認待ち）
 
-1. `build_persona_context` を固定する。Phase 0 の実測3経路に対応させる
-   - 人格カプセル（原文断片の抽出、上限つき）
-   - 恒常的な価値境界（全文）
-   - 小カテゴリのモデル選択（名前一覧を提示 → 選択 → 原文投入）
-2. 呼称契約を層3の部品として実装する（`character_addressing` 相当）
-3. 2作品で実証する
-   - JTS会話（`phase0/probe_b_offline_generation.py` を発展させる）
-   - SBTスレッド（新規）
-4. 同じ人格revisionが、scheme側のキャラID固有分岐なしで両方に通ることを確認する
+### 実装したもの
+
+```
+src/ppr/rehearsal/
+  capsule.py      人格の描画。予算が足りれば全文、足りなければ原文断片を抽出
+  addressing.py   呼称契約。二人称の単複と人類境界
+  context.py      build_persona_context（純粋関数）
+  contracts.py    RehearsalRequest / SchemeAdapter / RehearsalResult
+  runner.py       revision読取、カテゴリ選択、context生成、provider呼出し、記録
+  schemes/
+    jts_dialogue.py   JTS会話・簡易試演（一括生成）
+    sbt_thread.py     SBT架空SNS試演（逐次生成）
+src/ppr/llm/
+  fake.py         通信しないprovider
+  lm_studio.py    LM Studio接続。model keyと推論instance IDを区別する
+```
+
+### 人格の渡し方
+
+Phase 0 の実測（§4）に対応する3経路。すべて原文の引用で、LLM要約は使わない。
+
+1. **人格描画** — 予算が足りれば原典を全文（`mode=full`）、足りなければ原文断片を優先度配分で抽出（`mode=capsule`）。既定の予算は24,000字で、8人全員が全文で通る
+2. **恒常的な価値境界** — 全文そのまま。適用範囲だけを層3が宣言する
+3. **小カテゴリ** — 名前172件だけをモデルへ提示し、選ばれた分の原文を投入。最大4件
+
+`build_persona_context` は純粋関数で、モデルを呼ばない。小カテゴリの選択は runner が行い、結果を引数で渡す。
+
+### モード別扱いの適用範囲
+
+PHASE_PLAN §7.1 の決定を、原文を書き換えずに実現している。原典はそのまま渡し、
+「今回適用するのは議論と意見交換だけ。解説・相談は適用しない。保護対象・忌避価値・
+反射的反論・同意境界はモードに関わらず維持する」を層3が宣言する。
+
+### 2作品の対比
+
+| | jts-dialogue | sbt-thread |
+|---|---|---|
+| 生成方式 | 1回のJSON要求で全発言 | 発言ごとに1回ずつ |
+| システムプロンプト | 両者を1つにまとめる | 話者ごとに別々 |
+| 作品固有の値 | `emotion`（5種） | `post_id` / `reply_to_id` |
+| 典拠 | IMPLEMENTATION_PLAN §7.3 | SBT企画書 v3 §7.1・§7.3 |
+
+SBTは企画書 v3 §7.1 の「一括で全会話を書かせず、二体へ別々のシステムプロンプトを
+与え、交互に生成する」に従う。計画書 §7.4 の一括生成は使わない。
+SBTの仕様は策定中のため、件数・尺・開始話者は `scheme_input` で変更できる。
+尺は警告であって失敗条件にしない。
+
+### 検証済みの事項
+
+- 実データ8人の全ペア・両schemeで試演が成立する（Fake provider）
+- 同じ人格revisionが両schemeで同一のcontext本文になる
+- schemeのソースに8人のIDと名前、ヒロアキが現れない
+- 試演でライブラリが変更されない
+- 指定revisionと保存内容が食い違えば拒否する
+- キャンセルは `cancelled` として `failed` と区別して記録する
+- 一覧にないカテゴリ名は推測で寄せずに警告して捨てる
+- 小カテゴリの選択では名前だけを送り、本文を送らない
+
+### 未実施
+
+- 実モデルでの試演（`--lm-studio` で実行可能）
+- 作者による人物らしさの確認（ACCEPTANCE A項目相当）
+
+### 使い方
+
+```sh
+python -m ppr rehearse --lm-studio --scheme jts-dialogue --a <id> --b <id>
+python -m ppr rehearse --lm-studio --scheme sbt-thread  --a <id> --b <id>
+python -m ppr rehearse --fake ...        # 通信なしで配管だけ確認
+```
+
+記録は `data/runs/<run_id>.json` に、送ったメッセージ全文と返った値、
+人格contextの要約（描画モード・不採用断片・呼称契約の出どころ・選ばれたカテゴリ）が残る。
+
+## 次の作業
+
+1. 実モデル（LM Studio / Bedrock）で両schemeを実行する
+2. 作者が読み、その人物として使えるかを判断する
+3. 試演のGUIを作る（現状はCLIのみ）
+4. 二重管理の基準日を決める（PHASE_PLAN §7.3）

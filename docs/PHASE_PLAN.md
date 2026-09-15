@@ -51,7 +51,7 @@ JTSの高品質オフライン生成を、JTS無変更のままPPR側から実�
 
 達成。詳細は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
-### Phase 2 — 三層の関節を通す
+### Phase 2 — 三層の関節を通す（実装完了：2026-09-16 / 作者確認待ち）
 
 `build_persona_context` を固定し、2作品で実証する。
 
@@ -61,6 +61,9 @@ JTSの高品質オフライン生成を、JTS無変更のままPPR側から実�
 同じ人格revisionが、scheme側のキャラID分岐なしで両方へ通ることを確認する。呼称契約を層3の必須部品として実装する。コンテキスト不足時の縮約は、原文断片の抽出で行う。作者選択とモデル選択のどちらを既定にするかはここで決める。
 
 完了条件：同一revisionで2作品の試演が通り、ライブラリが変更されない。
+
+実装は達成。実モデルでの実行と作者の判断が残っている。
+詳細は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
 ### Phase 3 — JTSへの反映（無期限保留）
 

@@ -38,6 +38,24 @@ def _build_parser() -> argparse.ArgumentParser:
     res.add_argument("--field", nargs="*", default=None, help="既定は4本文すべて")
     res.add_argument("--yes", action="store_true", help="確認せずに実行する")
 
+    reh = sub.add_parser("rehearse", help="試演を1件実行する")
+    reh.add_argument("--scheme", default="jts-dialogue", choices=["jts-dialogue", "sbt-thread"])
+    reh.add_argument("--a", required=True, help="話者AのpersonaID")
+    reh.add_argument("--b", required=True, help="話者BのpersonaID")
+    reh.add_argument("--locale", default="ja-JP")
+    reh.add_argument("--topic", default=None)
+    reh.add_argument("--material", default=None)
+    reh.add_argument("--lm-studio", action="store_true", help="LM Studio で実行する")
+    reh.add_argument("--url", default="http://127.0.0.1:1234")
+    reh.add_argument("--model-contains", default="gemma")
+    reh.add_argument("--utterances", type=int, default=6, help="jts-dialogue の発言数")
+    reh.add_argument("--total-posts", type=int, default=6, help="sbt-thread の合計件数")
+    reh.add_argument("--temperature", type=float, default=0.7)
+    reh.add_argument("--context-limit", type=int, default=None,
+                     help="既定はLM Studioの報告値。Fakeでは200000")
+    reh.add_argument("--no-category-selection", action="store_true",
+                     help="小カテゴリのモデル選択を行わない")
+
     sub.add_parser(
         "selftest-text",
         help="Tk Textの往復で本文が変化しないかを、保存済みの全人格で確かめる",
@@ -246,6 +264,144 @@ def cmd_selftest_text(args: argparse.Namespace) -> int:
     return 0
 
 
+DEFAULT_TOPIC = (
+    "架空の町で、湿地を埋めて道路を延ばすと通勤が15分短くなる。"
+    "「反対する人は町の成長を邪魔している」という主張をどう見るか。"
+)
+DEFAULT_MATERIAL = "反対する人は町の成長を邪魔している。"
+
+
+def cmd_rehearse(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from .revisions import RevisionStore, revision_id_for
+    from .rehearsal.contracts import (
+        SELECTION_MODEL,
+        SELECTION_NONE,
+        CastMember,
+        ContextOptions,
+        ModelSettings,
+        RehearsalRequest,
+        Scenario,
+    )
+    from .rehearsal.runner import RehearsalRunner
+    from .rehearsal.schemes import create_scheme
+
+    config = resolve_config(args.data_dir, offline=args.offline)
+    config.ensure_directories()
+    library = LibraryStore(config).load()
+
+    documents = {}
+    for ref, persona_id in (("a", args.a), ("b", args.b)):
+        record = library.persona(persona_id)
+        if record is None:
+            print(f"人格が見つかりません: {persona_id}", file=sys.stderr)
+            return 1
+        document = record.document(args.locale)
+        if document is None:
+            print(f"localeがありません: {persona_id} / {args.locale}", file=sys.stderr)
+            return 1
+        documents[ref] = document
+
+    if args.lm_studio:
+        if args.offline:
+            print("--offline では実モデルへ接続できません。", file=sys.stderr)
+            return 1
+        from .llm.lm_studio import LmStudioClient, LmStudioError
+
+        client = LmStudioClient(args.url)
+        try:
+            models = client.list_models()
+        except LmStudioError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if not models:
+            print(f"LM Studio にモデルがありません: {args.url}", file=sys.stderr)
+            return 1
+        needle = args.model_contains.lower()
+        picked = [m for m in models if needle in m.model_key.lower()] or models
+        chosen = next((m for m in picked if m.loaded), picked[0])
+        print("LM Studio のモデル:")
+        for model in models:
+            mark = "→" if model is chosen else " "
+            print(f"  {mark} {model.display_name}")
+        context_limit = args.context_limit or chosen.context_length or 32768
+        settings = ModelSettings(
+            provider="lm-studio", model_key=chosen.model_key,
+            inference_id=chosen.inference_id, temperature=args.temperature,
+            max_tokens=4096, context_limit=context_limit,
+        )
+    else:
+        from .llm.fake import FakeLanguageModelClient
+        from .rehearsal.runner import CATEGORY_SELECTION_SCHEMA_NAME
+
+        lines = {
+            "lines": [
+                {"speaker": s, "text": f"（Fake）{i + 1}番目の発言。", "emotion": "normal"}
+                for i, s in enumerate(("a", "b") * 6)
+            ][: args.utterances]
+        }
+        client = FakeLanguageModelClient(
+            {
+                CATEGORY_SELECTION_SCHEMA_NAME: {"categories": []},
+                "jts_dialogue_lines": lines,
+            },
+            default={"text": "（Fake）これは投稿の本文です。" * 4},
+        )
+        settings = ModelSettings(context_limit=args.context_limit or 200000)
+        print("Fake provider で実行します。実モデルの結果ではありません。")
+
+    revisions = RevisionStore(config.revisions_dir)
+    cast = tuple(
+        CastMember(ref, documents[ref].persona_id, args.locale,
+                   revisions.create(documents[ref]).revision_id)
+        for ref in ("a", "b")
+    )
+    scheme_input = (
+        {"utterances": args.utterances} if args.scheme == "jts-dialogue"
+        else {"total_posts": args.total_posts}
+    )
+    request = RehearsalRequest(
+        scheme_id=args.scheme, scheme_version=1, cast=cast,
+        scenario=Scenario(
+            topic=args.topic or DEFAULT_TOPIC,
+            material=args.material if args.material is not None else DEFAULT_MATERIAL,
+        ),
+        model_settings=settings,
+        context_options=ContextOptions(
+            max_persona_characters=None,
+            category_selection=SELECTION_NONE if args.no_category_selection else SELECTION_MODEL,
+        ),
+        scheme_input=scheme_input,
+    )
+
+    scheme = create_scheme(args.scheme)
+    print(f"\n{documents['a'].name} × {documents['b'].name}   {scheme.display_name}")
+    print(f"話題: {request.scenario.topic[:60]}…\n")
+    result = RehearsalRunner(
+        library, client, revisions=revisions, on_status=lambda m: print(f"  · {m}")
+    ).run(request, scheme)
+
+    runs_dir = config.data_dir / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    path = runs_dir / f"{result.run_id}.json"
+    path.write_text(
+        _json.dumps(result.to_json(), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    print(f"\n状態: {result.status}   段階 {len(result.stages)} 件")
+    for warning in result.warnings:
+        print(f"  [警告] {warning}")
+    for error in result.errors:
+        print(f"  [エラー] {error}")
+    names = {c.actor_ref: c.name for c in result.persona_contexts}
+    for utterance in result.utterances:
+        print(f"\n──[{utterance.utterance_id}] {names.get(utterance.actor_ref, utterance.actor_ref)}")
+        print(utterance.text)
+    print(f"\n記録: {path}")
+    return 0 if result.succeeded else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -261,6 +417,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_restore_origin(args)
     if args.command == "selftest-text":
         return cmd_selftest_text(args)
+    if args.command == "rehearse":
+        return cmd_rehearse(args)
 
     from .ui.app import run_app
 
